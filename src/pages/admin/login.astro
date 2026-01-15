@@ -1,0 +1,27 @@
+---
+// src/pages/admin/login.astro
+import "../../styles/global.css";
+---
+
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <meta name="viewport" content="width=device-width" />
+        <meta name="generator" content={Astro.generator} />
+        <title>Running Dashboard Admin</title>
+    </head>
+    <body
+        class="bg-gray-900 text-white min-h-screen flex items-center justify-center"
+    >
+        <div class="text-center">
+            <h1 class="text-3xl font-bold mb-8">Admin Access</h1>
+            <a
+                href="/api/auth"
+                class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded transition-colors"
+            >
+                Connect with Strava
+            </a>
+        </div>
+    </body>
+</html>
