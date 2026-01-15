@@ -23,3 +23,6 @@ pnpm-debug.log*
 # jetbrains setting folder
 .idea/
 running-challenge-redis-data/
+
+# Local Netlify folder
+.netlify

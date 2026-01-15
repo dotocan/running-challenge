@@ -6,16 +6,19 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "format": "prettier --write ."
   },
   "dependencies": {
-    "@astrojs/node": "^9.5.1",
+    "@astrojs/netlify": "^6.6.3",
     "@tailwindcss/vite": "^4.1.18",
     "astro": "^5.16.9",
     "ioredis": "^5.9.1",
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
-    "@types/node": "^25.0.8"
+    "@types/node": "^25.0.8",
+    "prettier": "^3.8.0",
+    "prettier-plugin-astro": "^0.14.1"
   }
 }

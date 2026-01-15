@@ -11,114 +11,107 @@ let runCount = 0;
 let errorMsg = "";
 
 try {
-	// 1. Get Tokens
-	let tokens = await getTokens();
+  // 1. Get Tokens
+  let tokens = await getTokens();
 
-	if (tokens) {
-		// 2. Check Expiration & Refresh if needed
-		const nowSeconds = Math.floor(Date.now() / 1000);
-		if (tokens.expires_at && nowSeconds > tokens.expires_at) {
-			console.log("Tokens expired, refreshing...");
-			const clientId =
-				import.meta.env.STRAVA_CLIENT_ID ||
-				process.env.STRAVA_CLIENT_ID;
-			const clientSecret =
-				import.meta.env.STRAVA_CLIENT_SECRET ||
-				process.env.STRAVA_CLIENT_SECRET;
+  if (tokens) {
+    // 2. Check Expiration & Refresh if needed
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (tokens.expires_at && nowSeconds > tokens.expires_at) {
+      console.log("Tokens expired, refreshing...");
+      const clientId =
+        import.meta.env.STRAVA_CLIENT_ID || process.env.STRAVA_CLIENT_ID;
+      const clientSecret =
+        import.meta.env.STRAVA_CLIENT_SECRET ||
+        process.env.STRAVA_CLIENT_SECRET;
 
-			const refreshRes = await fetch(
-				"https://www.strava.com/oauth/token",
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						client_id: clientId,
-						client_secret: clientSecret,
-						grant_type: "refresh_token",
-						refresh_token: tokens.refresh_token,
-					}),
-				},
-			);
+      const refreshRes = await fetch("https://www.strava.com/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: clientId,
+          client_secret: clientSecret,
+          grant_type: "refresh_token",
+          refresh_token: tokens.refresh_token,
+        }),
+      });
 
-			if (!refreshRes.ok) {
-				throw new Error("Failed to refresh token");
-			}
+      if (!refreshRes.ok) {
+        throw new Error("Failed to refresh token");
+      }
 
-			const newTokens = await refreshRes.json();
-			// Merge new tokens with old (sometimes refresh doesn't return everything) but usually it returns access/refresh/expires
-			// Ideally we save the whole new object
-			tokens = newTokens;
-			await saveTokens(tokens);
-		}
+      const newTokens = await refreshRes.json();
+      // Merge new tokens with old (sometimes refresh doesn't return everything) but usually it returns access/refresh/expires
+      // Ideally we save the whole new object
+      tokens = newTokens;
+      await saveTokens(tokens);
+    }
 
-		// 3. Fetch Activities
-		// Fetching 200 activities.
-		// For date filtering server side:
-		// 15.1.2026 -> 1768435200 (approx)
-		// 1.7.2026 -> 1782864000 (approx)
-		// We can use `after` and `before` query params in Strava API to be efficient
-		const startDate = new Date("2026-01-15T00:00:00Z").getTime() / 1000;
-		const endDate = new Date("2026-07-01T23:59:59Z").getTime() / 1000;
+    // 3. Fetch Activities
+    // Fetching 200 activities.
+    // For date filtering server side:
+    // 15.1.2026 -> 1768435200 (approx)
+    // 1.7.2026 -> 1782864000 (approx)
+    // We can use `after` and `before` query params in Strava API to be efficient
+    const startDate = new Date("2026-01-15T00:00:00Z").getTime() / 1000;
+    const endDate = new Date("2026-07-01T23:59:59Z").getTime() / 1000;
 
-		const activitiesRes = await fetch(
-			`https://www.strava.com/api/v3/athlete/activities?per_page=200&after=${startDate}&before=${endDate}`,
-			{
-				headers: {
-					Authorization: `Bearer ${tokens.access_token}`,
-				},
-			},
-		);
+    const activitiesRes = await fetch(
+      `https://www.strava.com/api/v3/athlete/activities?per_page=200&after=${startDate}&before=${endDate}`,
+      {
+        headers: {
+          Authorization: `Bearer ${tokens.access_token}`,
+        },
+      },
+    );
 
-		if (activitiesRes.ok) {
-			const rawActivities = await activitiesRes.json();
+    if (activitiesRes.ok) {
+      const rawActivities = await activitiesRes.json();
 
-			// 4. Process Data
-			activities = rawActivities
-				.filter((a: any) => a.type === "Run")
-				.map((run: any) => {
-					const distanceKm = run.distance / 1000;
-					const avgSpeedKmh = run.average_speed * 3.6;
+      // 4. Process Data
+      activities = rawActivities
+        .filter((a: any) => a.type === "Run")
+        .map((run: any) => {
+          const distanceKm = run.distance / 1000;
+          const avgSpeedKmh = run.average_speed * 3.6;
 
-					// Red flag logic
-					const isRed = avgSpeedKmh < 7.3 && distanceKm < 5;
+          // Red flag logic
+          const isRed = avgSpeedKmh < 7.3 && distanceKm < 5;
 
-					return {
-						id: run.id,
-						name: run.name,
-						date: new Date(run.start_date),
-						distanceKm: distanceKm,
-						avgSpeedKmh: avgSpeedKmh,
-						isRed: isRed,
-						formattedDate: new Date(
-							run.start_date,
-						).toLocaleDateString("en-GB", {
-							day: "numeric",
-							month: "numeric",
-							year: "numeric",
-						}),
-					};
-				})
-				.sort((a: any, b: any) => b.date.getTime() - a.date.getTime()); // Newest first
+          return {
+            id: run.id,
+            name: run.name,
+            date: new Date(run.start_date),
+            distanceKm: distanceKm,
+            avgSpeedKmh: avgSpeedKmh,
+            isRed: isRed,
+            formattedDate: new Date(run.start_date).toLocaleDateString(
+              "en-GB",
+              {
+                day: "numeric",
+                month: "numeric",
+                year: "numeric",
+              },
+            ),
+          };
+        })
+        .sort((a: any, b: any) => b.date.getTime() - a.date.getTime()); // Newest first
 
-			// Aggregate
-			// Do not count red colored runs
-			const validRuns = activities.filter((a) => !a.isRed);
-			runCount = validRuns.length;
-			totalDistance = validRuns.reduce(
-				(sum, run) => sum + run.distanceKm,
-				0,
-			);
-		} else {
-			errorMsg = "Failed to fetch activities from Strava.";
-		}
-	} else {
-		// No tokens found. Likely need to login.
-		errorMsg =
-			"No Strava tokens found. Please visit /admin/login to connect.";
-	}
+      // Aggregate
+      // Do not count red colored runs
+      const validRuns = activities.filter((a) => !a.isRed);
+      runCount = validRuns.length;
+      totalDistance = validRuns.reduce((sum, run) => sum + run.distanceKm, 0);
+    } else {
+      errorMsg = "Failed to fetch activities from Strava.";
+    }
+  } else {
+    // No tokens found. Likely need to login.
+    errorMsg = "No Strava tokens found. Please visit /admin/login to connect.";
+  }
 } catch (e: any) {
-	console.error(e);
-	errorMsg = `Error: ${e.message}`;
+  console.error(e);
+  errorMsg = `Error: ${e.message}`;
 }
 
 // Formatting
@@ -126,121 +119,110 @@ const formattedTotalDistance = totalDistance.toFixed(2);
 ---
 
 <html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Running Dashboard</title>
-	</head>
-	<body class="bg-gray-100 min-h-screen font-sans">
-		<main class="max-w-4xl mx-auto p-6">
-			<header class="mb-8 text-center">
-				<h1 class="text-4xl font-extrabold text-gray-900 mb-2">
-					Running Challenge
-				</h1>
-				<p class="text-gray-600">15.01.2026 - 01.07.2026</p>
-			</header>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>Running Dashboard</title>
+  </head>
+  <body class="bg-gray-100 min-h-screen font-sans">
+    <main class="max-w-4xl mx-auto p-6">
+      <header class="mb-8 text-center">
+        <h1 class="text-4xl font-extrabold text-gray-900 mb-2">
+          Running Challenge
+        </h1>
+        <p class="text-gray-600">15.01.2026 - 01.07.2026</p>
+      </header>
 
-			{
-				errorMsg && (
-					<div
-						class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6"
-						role="alert"
-					>
-						<strong class="font-bold">Notice:</strong>
-						<span class="block sm:inline"> {errorMsg}</span>
-					</div>
-				)
-			}
+      {
+        errorMsg && (
+          <div
+            class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6"
+            role="alert"
+          >
+            <strong class="font-bold">Notice:</strong>
+            <span class="block sm:inline"> {errorMsg}</span>
+          </div>
+        )
+      }
 
-			{
-				!errorMsg && (
-					<>
-						<section class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-							<div class="bg-white rounded-lg shadow-md p-6 flex flex-col items-center">
-								<h2 class="text-lg font-semibold text-gray-500 uppercase tracking-wide">
-									Valid Runs
-								</h2>
-								<p class="text-5xl font-bold text-blue-600 mt-2">
-									{runCount}
-								</p>
-							</div>
-							<div class="bg-white rounded-lg shadow-md p-6 flex flex-col items-center">
-								<h2 class="text-lg font-semibold text-gray-500 uppercase tracking-wide">
-									Total Distance
-								</h2>
-								<p class="text-5xl font-bold text-green-600 mt-2">
-									{formattedTotalDistance}{" "}
-									<span class="text-2xl text-gray-400">
-										km
-									</span>
-								</p>
-							</div>
-						</section>
+      {
+        !errorMsg && (
+          <>
+            <section class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+              <div class="bg-white rounded-lg shadow-md p-6 flex flex-col items-center">
+                <h2 class="text-lg font-semibold text-gray-500 uppercase tracking-wide">
+                  Valid Runs
+                </h2>
+                <p class="text-5xl font-bold text-blue-600 mt-2">{runCount}</p>
+              </div>
+              <div class="bg-white rounded-lg shadow-md p-6 flex flex-col items-center">
+                <h2 class="text-lg font-semibold text-gray-500 uppercase tracking-wide">
+                  Total Distance
+                </h2>
+                <p class="text-5xl font-bold text-green-600 mt-2">
+                  {formattedTotalDistance}{" "}
+                  <span class="text-2xl text-gray-400">km</span>
+                </p>
+              </div>
+            </section>
 
-						<section>
-							<h3 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-2">
-								Recent Activities
-							</h3>
-							<div class="space-y-4">
-								{activities.length === 0 ? (
-									<p class="text-center text-gray-500 py-8">
-										No running activities found in this
-										period.
-									</p>
-								) : (
-									activities.map((run) => (
-										<div
-											class={`rounded-lg shadow p-4 flex flex-col sm:flex-row justify-between items-center transition-transform hover:scale-[1.01] ${run.isRed ? "bg-red-50 border-l-4 border-red-500" : "bg-white border-l-4 border-blue-500"}`}
-										>
-											<div class="flex-1 mb-2 sm:mb-0 text-center sm:text-left">
-												<p class="text-gray-500 text-sm font-medium">
-													{run.formattedDate}
-												</p>
-												<h4
-													class={`text-lg font-bold ${run.isRed ? "text-red-700" : "text-gray-800"}`}
-												>
-													{run.name}
-												</h4>
-											</div>
+            <section>
+              <h3 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-2">
+                Recent Activities
+              </h3>
+              <div class="space-y-4">
+                {activities.length === 0 ? (
+                  <p class="text-center text-gray-500 py-8">
+                    No running activities found in this period.
+                  </p>
+                ) : (
+                  activities.map((run) => (
+                    <div
+                      class={`rounded-lg shadow p-4 flex flex-col sm:flex-row justify-between items-center transition-transform hover:scale-[1.01] ${run.isRed ? "bg-red-50 border-l-4 border-red-500" : "bg-white border-l-4 border-blue-500"}`}
+                    >
+                      <div class="flex-1 mb-2 sm:mb-0 text-center sm:text-left">
+                        <p class="text-gray-500 text-sm font-medium">
+                          {run.formattedDate}
+                        </p>
+                        <h4
+                          class={`text-lg font-bold ${run.isRed ? "text-red-700" : "text-gray-800"}`}
+                        >
+                          {run.name}
+                        </h4>
+                      </div>
 
-											<div class="flex gap-8 text-center">
-												<div>
-													<p class="text-xs text-gray-400 uppercase">
-														Distance
-													</p>
-													<p
-														class={`text-xl font-bold ${run.isRed ? "text-red-600" : "text-gray-700"}`}
-													>
-														{run.distanceKm.toFixed(
-															2,
-														)}{" "}
-														km
-													</p>
-												</div>
-												<div>
-													<p class="text-xs text-gray-400 uppercase">
-														Avg Speed
-													</p>
-													<p
-														class={`text-xl font-bold ${run.isRed ? "text-red-600" : "text-gray-700"}`}
-													>
-														{run.avgSpeedKmh.toFixed(
-															1,
-														)}{" "}
-														km/h
-													</p>
-												</div>
-											</div>
-										</div>
-									))
-								)}
-							</div>
-						</section>
-					</>
-				)
-			}
-		</main>
-	</body>
+                      <div class="flex gap-8 text-center">
+                        <div>
+                          <p class="text-xs text-gray-400 uppercase">
+                            Distance
+                          </p>
+                          <p
+                            class={`text-xl font-bold ${run.isRed ? "text-red-600" : "text-gray-700"}`}
+                          >
+                            {run.distanceKm.toFixed(2)} km
+                          </p>
+                        </div>
+                        <div>
+                          <p class="text-xs text-gray-400 uppercase">
+                            Avg Speed
+                          </p>
+                          <p
+                            class={`text-xl font-bold ${run.isRed ? "text-red-600" : "text-gray-700"}`}
+                          >
+                            {run.avgSpeedKmh.toFixed(1)} km/h
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+          </>
+        )
+      }
+    </main>
+  </body>
 </html>
