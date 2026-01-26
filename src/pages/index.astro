@@ -76,7 +76,7 @@ try {
           const avgSpeedKmh = run.average_speed * 3.6;
 
           // Red flag logic
-          const isRed = avgSpeedKmh < 7.3 && distanceKm < 5;
+          const isRed = avgSpeedKmh < 7.3 || distanceKm < 5;
 
           return {
             id: run.id,
