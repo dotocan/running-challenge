@@ -70,7 +70,7 @@ try {
 
       // 4. Process Data
       activities = rawActivities
-        .filter((a: any) => a.type === "Run")
+        .filter((a: any) => a.type === "Run" || a.type === "Soccer")
         .map((run: any) => {
           const distanceKm = run.distance / 1000;
           const avgSpeedKmh = run.average_speed * 3.6;
@@ -81,6 +81,7 @@ try {
           return {
             id: run.id,
             name: run.name,
+            type: run.type,
             date: new Date(run.start_date),
             distanceKm: distanceKm,
             avgSpeedKmh: avgSpeedKmh,
@@ -178,18 +179,18 @@ const formattedTotalDistance = totalDistance.toFixed(2);
                     No running activities found in this period.
                   </p>
                 ) : (
-                  activities.map((run) => (
+                  activities.map((activity) => (
                     <div
-                      class={`rounded-lg shadow p-4 flex flex-col sm:flex-row justify-between items-center transition-transform hover:scale-[1.01] ${run.isRed ? "bg-red-50 border-l-4 border-red-500" : "bg-white border-l-4 border-blue-500"}`}
+                      class={`rounded-lg shadow p-4 flex flex-col sm:flex-row justify-between items-center transition-transform hover:scale-[1.01] ${activity.isRed ? "bg-red-50 border-l-4 border-red-500" : "bg-white border-l-4 border-blue-500"}`}
                     >
                       <div class="flex-1 mb-2 sm:mb-0 text-center sm:text-left">
                         <p class="text-gray-500 text-sm font-medium">
-                          {run.formattedDate}
+                          {activity.formattedDate} • {activity.type}
                         </p>
                         <h4
-                          class={`text-lg font-bold ${run.isRed ? "text-red-700" : "text-gray-800"}`}
+                          class={`text-lg font-bold ${activity.isRed ? "text-red-700" : "text-gray-800"}`}
                         >
-                          {run.name}
+                          {activity.name}
                         </h4>
                       </div>
 
@@ -199,9 +200,9 @@ const formattedTotalDistance = totalDistance.toFixed(2);
                             Distance
                           </p>
                           <p
-                            class={`text-xl font-bold ${run.isRed ? "text-red-600" : "text-gray-700"}`}
+                            class={`text-xl font-bold ${activity.isRed ? "text-red-600" : "text-gray-700"}`}
                           >
-                            {run.distanceKm.toFixed(2)} km
+                            {activity.distanceKm.toFixed(2)} km
                           </p>
                         </div>
                         <div>
@@ -209,9 +210,9 @@ const formattedTotalDistance = totalDistance.toFixed(2);
                             Avg Speed
                           </p>
                           <p
-                            class={`text-xl font-bold ${run.isRed ? "text-red-600" : "text-gray-700"}`}
+                            class={`text-xl font-bold ${activity.isRed ? "text-red-600" : "text-gray-700"}`}
                           >
-                            {run.avgSpeedKmh.toFixed(1)} km/h
+                            {activity.avgSpeedKmh.toFixed(1)} km/h
                           </p>
                         </div>
                       </div>
