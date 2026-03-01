@@ -7,6 +7,7 @@ import "../styles/global.css";
 
 let activities: any[] = [];
 let totalDistance = 0;
+let totalOverallDistance = 0;
 let runCount = 0;
 let errorMsg = "";
 
@@ -103,6 +104,10 @@ try {
       const validRuns = activities.filter((a) => !a.isRed);
       runCount = validRuns.length;
       totalDistance = validRuns.reduce((sum, run) => sum + run.distanceKm, 0);
+      totalOverallDistance = activities.reduce(
+        (sum, run) => sum + run.distanceKm,
+        0,
+      );
     } else {
       errorMsg = "Failed to fetch activities from Strava.";
     }
@@ -117,6 +122,7 @@ try {
 
 // Formatting
 const formattedTotalDistance = totalDistance.toFixed(2);
+const formattedTotalOverallDistance = totalOverallDistance.toFixed(2);
 ---
 
 <html lang="en">
@@ -165,6 +171,9 @@ const formattedTotalDistance = totalDistance.toFixed(2);
                 <p class="text-5xl font-bold text-green-600 mt-2">
                   {formattedTotalDistance}{" "}
                   <span class="text-2xl text-gray-400">km</span>
+                </p>
+                <p class="text-sm text-gray-400 mt-2">
+                  bilo bi {formattedTotalOverallDistance} da nisi invalid
                 </p>
               </div>
             </section>
