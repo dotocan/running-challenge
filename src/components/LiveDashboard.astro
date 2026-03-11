@@ -1,0 +1,10 @@
+---
+// src/components/LiveDashboard.astro
+import { fetchDashboardData } from "../lib/strava";
+import DashboardStats from "./DashboardStats.astro";
+
+// Fetch fresh data from Strava API
+const data = await fetchDashboardData();
+---
+
+<DashboardStats data={data} isRefreshing={false} />

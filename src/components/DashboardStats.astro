@@ -1,0 +1,118 @@
+---
+// src/components/DashboardStats.astro
+import type { DashboardData } from "../lib/strava";
+
+interface Props {
+  data: DashboardData;
+  isRefreshing?: boolean;
+}
+
+const { data, isRefreshing = false } = Astro.props;
+const { activities, runCount, totalDistance, totalOverallDistance, errorMsg } = data;
+
+const formattedTotalDistance = totalDistance.toFixed(2);
+const formattedTotalOverallDistance = totalOverallDistance.toFixed(2);
+---
+
+<div class="relative">
+  {isRefreshing && (
+    <div class="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-lg">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+      <p class="text-blue-800 font-medium">Refreshing data from Strava...</p>
+    </div>
+  )}
+
+  <div class={isRefreshing ? "opacity-50 pointer-events-none transition-opacity duration-300" : "transition-opacity duration-300"}>
+    {
+      errorMsg && (
+        <div
+          class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6"
+          role="alert"
+        >
+          <strong class="font-bold">Notice:</strong>
+          <span class="block sm:inline"> {errorMsg}</span>
+        </div>
+      )
+    }
+
+    {
+      !errorMsg && (
+        <>
+          <section class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+            <div class="bg-white rounded-lg shadow-md p-6 flex flex-col items-center">
+              <h2 class="text-lg font-semibold text-gray-500 uppercase tracking-wide">
+                Valid Runs
+              </h2>
+              <p class="text-5xl font-bold text-blue-600 mt-2">{runCount}</p>
+            </div>
+            <div class="bg-white rounded-lg shadow-md p-6 flex flex-col items-center">
+              <h2 class="text-lg font-semibold text-gray-500 uppercase tracking-wide">
+                Total Distance
+              </h2>
+              <p class="text-5xl font-bold text-green-600 mt-2">
+                {formattedTotalDistance}{" "}
+                <span class="text-2xl text-gray-400">km</span>
+              </p>
+              <p class="text-sm text-gray-400 mt-2">
+                bilo bi {formattedTotalOverallDistance} da nisi invalid
+              </p>
+            </div>
+          </section>
+
+          <section>
+            <h3 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-2">
+              Recent Activities
+            </h3>
+            <div class="space-y-4">
+              {activities.length === 0 ? (
+                <p class="text-center text-gray-500 py-8">
+                  No running activities found in this period.
+                </p>
+              ) : (
+                activities.map((activity) => (
+                  <div
+                    class={`rounded-lg shadow p-4 flex flex-col sm:flex-row justify-between items-center transition-transform hover:scale-[1.01] ${activity.isRed ? "bg-red-50 border-l-4 border-red-500" : "bg-white border-l-4 border-blue-500"}`}
+                  >
+                    <div class="flex-1 mb-2 sm:mb-0 text-center sm:text-left">
+                      <p class="text-gray-500 text-sm font-medium">
+                        {activity.formattedDate} • {activity.type}
+                      </p>
+                      <h4
+                        class={`text-lg font-bold ${activity.isRed ? "text-red-700" : "text-gray-800"}`}
+                      >
+                        {activity.name}
+                      </h4>
+                    </div>
+
+                    <div class="flex gap-8 text-center">
+                      <div>
+                        <p class="text-xs text-gray-400 uppercase">
+                          Distance
+                        </p>
+                        <p
+                          class={`text-xl font-bold ${activity.isRed ? "text-red-600" : "text-gray-700"}`}
+                        >
+                          {activity.distanceKm.toFixed(2)} km
+                        </p>
+                      </div>
+                      <div>
+                        <p class="text-xs text-gray-400 uppercase">
+                          Avg Speed
+                        </p>
+                        <p
+                          class={`text-xl font-bold ${activity.isRed ? "text-red-600" : "text-gray-700"}`}
+                        >
+                          {activity.avgSpeedKmh.toFixed(1)} km/h
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </>
+      )
+    }
+  </div>
+</div>
