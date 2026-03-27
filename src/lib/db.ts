@@ -29,13 +29,3 @@ export const getTokens = async () => {
   return tokens ? JSON.parse(tokens) : null;
 };
 
-export const setDashboardCache = async (data: any) => {
-  const client = getRedis();
-  await client.set("cached_dashboard_data", JSON.stringify(data));
-};
-
-export const getDashboardCache = async () => {
-  const client = getRedis();
-  const data = await client.get("cached_dashboard_data");
-  return data ? JSON.parse(data) : null;
-};

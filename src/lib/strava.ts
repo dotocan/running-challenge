@@ -1,4 +1,4 @@
-import { getTokens, saveTokens, setDashboardCache, getDashboardCache } from "./db";
+import { getTokens, saveTokens } from "./db";
 
 export interface DashboardData {
   activities: any[];
@@ -109,9 +109,5 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
     errorMsg = `Error: ${e.message}`;
   }
 
-  const result = { activities, totalDistance, totalOverallDistance, runCount, errorMsg };
-  if (!errorMsg) {
-    await setDashboardCache(result);
-  }
-  return result;
+  return { activities, totalDistance, totalOverallDistance, runCount, errorMsg };
 };

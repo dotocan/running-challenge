@@ -1,6 +1,8 @@
 import type { APIRoute } from "astro";
 import { saveTokens } from "../../lib/db";
 
+export const prerender = false;
+
 export const GET: APIRoute = async ({ request, redirect }) => {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");

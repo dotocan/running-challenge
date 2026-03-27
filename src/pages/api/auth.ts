@@ -1,5 +1,7 @@
 import type { APIRoute } from "astro";
 
+export const prerender = false;
+
 export const GET: APIRoute = ({ redirect }) => {
   const clientId =
     import.meta.env.STRAVA_CLIENT_ID || process.env.STRAVA_CLIENT_ID;

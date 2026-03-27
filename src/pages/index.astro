@@ -1,23 +1,10 @@
 ---
 // src/pages/index.astro
 import "../styles/global.css";
-import LiveDashboard from "../components/LiveDashboard.astro";
 import DashboardStats from "../components/DashboardStats.astro";
-import { getDashboardCache } from "../lib/db";
-import type { DashboardData } from "../lib/strava";
+import { fetchDashboardData } from "../lib/strava";
 
-let cachedData: DashboardData | null = await getDashboardCache();
-
-// Fallback empty state if entirely no cache
-if (!cachedData) {
-  cachedData = {
-    activities: [],
-    totalDistance: 0,
-    totalOverallDistance: 0,
-    runCount: 0,
-    errorMsg: ""
-  };
-}
+const data = await fetchDashboardData();
 ---
 
 <html lang="en">
@@ -37,9 +24,7 @@ if (!cachedData) {
         <p class="text-gray-600">15.01.2026 - 01.07.2026</p>
       </header>
 
-      <LiveDashboard server:defer>
-        <DashboardStats slot="fallback" data={cachedData} isRefreshing={true} />
-      </LiveDashboard>
+      <DashboardStats data={data} isRefreshing={false} />
     </main>
   </body>
 </html>
