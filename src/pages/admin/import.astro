@@ -207,14 +207,13 @@ const wrongPassword = hasToken && !isAuthenticated;
           if (cols.length <= Math.max(dateCol, distCol, durCol)) continue;
 
           // Filter to running/soccer activities if type column exists
-          // Samsung Health: 1001 = Running, 10001 = Football/Soccer
+          // Samsung Health: 1002 = Running, 4004 = Football/Soccer
           if (typeCol !== -1) {
             const type = cols[typeCol].trim();
             const isRelevant =
-              type === "1001" ||
-              type === "10001" ||
+              type === "1002" ||
+              type === "4004" ||
               type.toLowerCase().includes("run") ||
-              type.toLowerCase().includes("jogging") ||
               type.toLowerCase().includes("soccer") ||
               type.toLowerCase().includes("football");
             if (!isRelevant) continue;
@@ -224,13 +223,11 @@ const wrongPassword = hasToken && !isAuthenticated;
           const date = new Date(dateStr);
           if (isNaN(date.getTime())) continue;
 
-          // Distance: Samsung Health stores in meters
-          let distanceRaw = parseFloat(cols[distCol]);
-          if (isNaN(distanceRaw)) continue;
+          // Distance: Samsung Health always stores in meters
+          const distanceRaw = parseFloat(cols[distCol]);
+          if (isNaN(distanceRaw) || distanceRaw <= 0) continue;
 
-          // If distance > 1000, assume meters; otherwise assume km
-          const distanceKm = distanceRaw > 1000 ? distanceRaw / 1000 : distanceRaw;
-          if (distanceKm <= 0) continue;
+          const distanceKm = distanceRaw / 1000;
 
           // Duration: Samsung Health stores in milliseconds
           let durationMs = parseFloat(cols[durCol]);
@@ -244,7 +241,7 @@ const wrongPassword = hasToken && !isAuthenticated;
           const isValid = distanceKm >= MIN_DISTANCE_KM && avgSpeedKmh >= MIN_AVG_SPEED_KMH;
 
           const exerciseType = typeCol !== -1 ? cols[typeCol].trim() : "";
-          const activityType = exerciseType === "10001" ? "Soccer" : "Run";
+          const activityType = exerciseType === "4004" ? "Soccer" : "Run";
 
           const title =
             titleCol !== -1 && cols[titleCol]?.trim()
