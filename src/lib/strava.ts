@@ -1,4 +1,4 @@
-import { getTokens, saveTokens } from "./db";
+import { getTokens, saveTokens, getManualActivities } from "./db";
 
 export interface DashboardData {
   activities: any[];
@@ -63,7 +63,7 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
       if (activitiesRes.ok) {
         const rawActivities = await activitiesRes.json();
 
-        activities = rawActivities
+        const stravaActivities = rawActivities
           .filter((a: any) => a.type === "Run" || a.type === "Soccer")
           .map((run: any) => {
             const distanceKm = run.distance / 1000;
@@ -79,6 +79,7 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
               distanceKm: distanceKm,
               avgSpeedKmh: avgSpeedKmh,
               isRed: isRed,
+              source: "strava",
               formattedDate: new Date(run.start_date).toLocaleDateString(
                 "en-GB",
                 {
@@ -88,7 +89,50 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
                 },
               ),
             };
+          });
+
+        const startDateMs = startDate * 1000;
+        const endDateMs = endDate * 1000;
+        const manualActivities = (await getManualActivities())
+          .filter((run) => {
+            const t = new Date(run.date).getTime();
+            return t >= startDateMs && t <= endDateMs;
           })
+          .map((run) => {
+          const durationHours = run.durationMs / 3_600_000;
+          const avgSpeedKmh = durationHours > 0 ? run.distanceKm / durationHours : 0;
+          const isRed = avgSpeedKmh < 7.3 || run.distanceKm < 5;
+
+          return {
+            id: run.id,
+            name: run.name,
+            type: run.type || "Run",
+            date: new Date(run.date),
+            distanceKm: run.distanceKm,
+            avgSpeedKmh: avgSpeedKmh,
+            isRed: isRed,
+            source: run.source,
+            formattedDate: new Date(run.date).toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "numeric",
+              year: "numeric",
+            }),
+          };
+        });
+
+        // Deduplicate: if a manual activity falls on the same day and has
+        // similar distance (within 20%) to a Strava activity, drop it.
+        const deduped = manualActivities.filter((manual) => {
+          const manualDay = manual.date.toISOString().slice(0, 10);
+          return !stravaActivities.some((strava: any) => {
+            const stravaDay = strava.date.toISOString().slice(0, 10);
+            if (manualDay !== stravaDay) return false;
+            const diff = Math.abs(manual.distanceKm - strava.distanceKm);
+            return diff / Math.max(manual.distanceKm, strava.distanceKm) < 0.2;
+          });
+        });
+
+        activities = [...stravaActivities, ...deduped]
           .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         const validRuns = activities.filter((a) => !a.isRed);

@@ -1,0 +1,397 @@
+---
+import "../../styles/global.css";
+
+export const prerender = false;
+
+const adminPassword =
+  import.meta.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD;
+
+const cookie = Astro.request.headers.get("cookie") || "";
+const tokenMatch = cookie.match(/admin_token=([^;]+)/);
+const hasToken = !!tokenMatch;
+const isAuthenticated = hasToken && decodeURIComponent(tokenMatch![1]) === adminPassword;
+const wrongPassword = hasToken && !isAuthenticated;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Import Activities</title>
+  </head>
+  <body class="bg-gray-900 text-white min-h-screen p-6">
+    <main class="max-w-5xl mx-auto">
+      {!isAuthenticated ? (
+        <div class="flex items-center justify-center min-h-[60vh]">
+          <div class="text-center">
+            <h1 class="text-3xl font-bold mb-8">Admin Access</h1>
+            <form id="login-form" class="space-y-4">
+              <input
+                type="password"
+                id="password-input"
+                placeholder="Password"
+                class="bg-gray-800 border border-gray-600 text-white px-4 py-3 rounded w-64 text-center focus:border-orange-500 focus:outline-none"
+              />
+              <div>
+                <button
+                  type="submit"
+                  class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded transition-colors"
+                >
+                  Log In
+                </button>
+              </div>
+              <p id="login-error" class={`text-red-400 ${wrongPassword ? "" : "hidden"}`}>Wrong password.</p>
+            </form>
+            <script>
+              document.getElementById("login-form")!.addEventListener("submit", (e) => {
+                e.preventDefault();
+                const pw = (document.getElementById("password-input") as HTMLInputElement).value;
+                document.cookie = `admin_token=${encodeURIComponent(pw)}; path=/; SameSite=Strict`;
+                location.reload();
+              });
+            </script>
+          </div>
+        </div>
+      ) : (
+      <>
+      <header class="mb-8">
+        <h1 class="text-3xl font-bold mb-2">Import Activities</h1>
+        <p class="text-gray-400">
+          Upload a Samsung Health exercise CSV to import old runs.
+        </p>
+      </header>
+
+      <div id="upload-section" class="mb-8">
+        <label
+          class="block w-full border-2 border-dashed border-gray-600 rounded-lg p-12 text-center cursor-pointer hover:border-orange-500 transition-colors"
+        >
+          <input type="file" accept=".csv" id="csv-input" class="hidden" />
+          <p class="text-lg text-gray-300">Click to select a CSV file</p>
+          <p class="text-sm text-gray-500 mt-2">Samsung Health exercise export (com.samsung.shealth.exercise.*.csv)</p>
+        </label>
+      </div>
+
+      <div id="preview-section" class="hidden">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-bold">
+            Preview <span id="preview-count" class="text-orange-400"></span>
+          </h2>
+          <div class="flex gap-3">
+            <button
+              id="btn-clear"
+              class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded transition-colors"
+            >
+              Clear
+            </button>
+            <button
+              id="btn-import"
+              class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-6 rounded transition-colors"
+            >
+              Import Selected
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-gray-700 text-left">
+                <th class="p-3"><input type="checkbox" id="select-all" checked /></th>
+                <th class="p-3">Date</th>
+                <th class="p-3">Title</th>
+                <th class="p-3">Distance (km)</th>
+                <th class="p-3">Duration</th>
+                <th class="p-3">Avg Speed (km/h)</th>
+                <th class="p-3">Valid</th>
+              </tr>
+            </thead>
+            <tbody id="preview-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="result-section" class="hidden mt-6">
+        <div id="result-msg" class="rounded-lg p-4 text-center font-bold"></div>
+      </div>
+      </>
+      )}
+    </main>
+
+    <script>
+      interface ParsedRun {
+        id: string;
+        name: string;
+        type: string;
+        date: string;
+        distanceKm: number;
+        durationMs: number;
+        avgSpeedKmh: number;
+        isValid: boolean;
+      }
+
+      let parsedRuns: ParsedRun[] = [];
+
+      const csvInput = document.getElementById("csv-input") as HTMLInputElement;
+      const previewSection = document.getElementById("preview-section")!;
+      const previewBody = document.getElementById("preview-body")!;
+      const previewCount = document.getElementById("preview-count")!;
+      const selectAll = document.getElementById("select-all") as HTMLInputElement;
+      const btnImport = document.getElementById("btn-import")!;
+      const btnClear = document.getElementById("btn-clear")!;
+      const resultSection = document.getElementById("result-section")!;
+      const resultMsg = document.getElementById("result-msg")!;
+
+      csvInput.addEventListener("change", async (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+
+        const text = await file.text();
+        parsedRuns = parseCSV(text);
+
+        if (parsedRuns.length === 0) {
+          showResult("No running activities found in CSV.", false);
+          return;
+        }
+
+        renderPreview();
+      });
+
+      function parseCSV(text: string): ParsedRun[] {
+        let lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+        if (lines.length < 3) return [];
+
+        // Samsung Health CSVs have a metadata first line — skip it if the
+        // second line has more commas (i.e. is the real header row)
+        if (splitCSVLine(lines[1]).length > splitCSVLine(lines[0]).length) {
+          lines = lines.slice(1);
+        }
+
+        const headers = splitCSVLine(lines[0]).map((h) => h.toLowerCase().trim());
+
+        // Use exact-suffix matching to avoid e.g. "distance" hitting "incline_distance"
+        const dateCol = findCol(headers, [
+          "com.samsung.health.exercise.start_time", "start_time", "start time", "date",
+        ]);
+        const distCol = findCol(headers, [
+          "com.samsung.health.exercise.distance", "distance", "total_distance",
+        ]);
+        const durCol = findCol(headers, [
+          "com.samsung.health.exercise.duration", "duration", "active_time",
+        ]);
+        const titleCol = findCol(headers, [
+          "com.samsung.health.exercise.comment", "comment", "title", "name",
+        ]);
+        const typeCol = findCol(headers, [
+          "com.samsung.health.exercise.exercise_type", "exercise_type", "activity_type", "type",
+        ]);
+
+        if (dateCol === -1 || distCol === -1 || durCol === -1) {
+          showResult(
+            `Could not find required columns. Found headers: ${headers.join(", ")}. Need: start_time, distance, duration.`,
+            false,
+          );
+          return [];
+        }
+
+        const runs: ParsedRun[] = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const cols = splitCSVLine(lines[i]);
+          if (cols.length <= Math.max(dateCol, distCol, durCol)) continue;
+
+          // Filter to running/soccer activities if type column exists
+          // Samsung Health: 1001 = Running, 10001 = Football/Soccer
+          if (typeCol !== -1) {
+            const type = cols[typeCol].trim();
+            const isRelevant =
+              type === "1001" ||
+              type === "10001" ||
+              type.toLowerCase().includes("run") ||
+              type.toLowerCase().includes("jogging") ||
+              type.toLowerCase().includes("soccer") ||
+              type.toLowerCase().includes("football");
+            if (!isRelevant) continue;
+          }
+
+          const dateStr = cols[dateCol].trim();
+          const date = new Date(dateStr);
+          if (isNaN(date.getTime())) continue;
+
+          // Distance: Samsung Health stores in meters
+          let distanceRaw = parseFloat(cols[distCol]);
+          if (isNaN(distanceRaw)) continue;
+
+          // If distance > 1000, assume meters; otherwise assume km
+          const distanceKm = distanceRaw > 1000 ? distanceRaw / 1000 : distanceRaw;
+          if (distanceKm <= 0) continue;
+
+          // Duration: Samsung Health stores in milliseconds
+          let durationMs = parseFloat(cols[durCol]);
+          if (isNaN(durationMs) || durationMs <= 0) continue;
+
+          // If duration < 1000, assume seconds and convert
+          if (durationMs < 1000) durationMs = durationMs * 1000;
+
+          const durationHours = durationMs / 3_600_000;
+          const avgSpeedKmh = durationHours > 0 ? distanceKm / durationHours : 0;
+          const isValid = distanceKm >= 5 && avgSpeedKmh >= 7.3;
+
+          const exerciseType = typeCol !== -1 ? cols[typeCol].trim() : "";
+          const activityType = exerciseType === "10001" ? "Soccer" : "Run";
+
+          const title =
+            titleCol !== -1 && cols[titleCol]?.trim()
+              ? cols[titleCol].trim()
+              : `Samsung Health ${activityType}`;
+
+          runs.push({
+            id: `sh-${date.getTime()}-${i}`,
+            name: title,
+            type: activityType,
+            date: date.toISOString(),
+            distanceKm,
+            durationMs,
+            avgSpeedKmh,
+            isValid,
+          });
+        }
+
+        // Sort by date descending
+        runs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        return runs;
+      }
+
+      function splitCSVLine(line: string): string[] {
+        const result: string[] = [];
+        let current = "";
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') {
+            inQuotes = !inQuotes;
+          } else if (ch === "," && !inQuotes) {
+            result.push(current);
+            current = "";
+          } else {
+            current += ch;
+          }
+        }
+        result.push(current);
+        return result;
+      }
+
+      function findCol(headers: string[], candidates: string[]): number {
+        // Exact match first
+        for (const c of candidates) {
+          const idx = headers.indexOf(c);
+          if (idx !== -1) return idx;
+        }
+        // Suffix match: header ends with the candidate (e.g. "....distance" ends with "distance")
+        for (const c of candidates) {
+          const idx = headers.findIndex((h) => h.endsWith("." + c) || h.endsWith("_" + c));
+          if (idx !== -1) return idx;
+        }
+        return -1;
+      }
+
+      function formatDuration(ms: number): string {
+        const totalMin = Math.floor(ms / 60000);
+        const h = Math.floor(totalMin / 60);
+        const m = totalMin % 60;
+        return h > 0 ? `${h}h ${m}m` : `${m}m`;
+      }
+
+      function renderPreview() {
+        previewSection.classList.remove("hidden");
+        resultSection.classList.add("hidden");
+        previewCount.textContent = `(${parsedRuns.length} runs found)`;
+
+        previewBody.innerHTML = parsedRuns
+          .map(
+            (run, i) => `
+          <tr class="border-b border-gray-800 ${run.isValid ? "" : "text-red-400"}">
+            <td class="p-3"><input type="checkbox" data-idx="${i}" class="row-check" checked /></td>
+            <td class="p-3">${new Date(run.date).toLocaleDateString("en-GB")}</td>
+            <td class="p-3">${escapeHtml(run.name)}</td>
+            <td class="p-3">${run.distanceKm.toFixed(2)}</td>
+            <td class="p-3">${formatDuration(run.durationMs)}</td>
+            <td class="p-3">${run.avgSpeedKmh.toFixed(1)}</td>
+            <td class="p-3">${run.isValid ? "Yes" : "No"}</td>
+          </tr>`,
+          )
+          .join("");
+      }
+
+      function escapeHtml(str: string): string {
+        const div = document.createElement("div");
+        div.textContent = str;
+        return div.innerHTML;
+      }
+
+      selectAll.addEventListener("change", () => {
+        document.querySelectorAll<HTMLInputElement>(".row-check").forEach((cb) => {
+          cb.checked = selectAll.checked;
+        });
+      });
+
+      btnClear.addEventListener("click", () => {
+        parsedRuns = [];
+        previewSection.classList.add("hidden");
+        resultSection.classList.add("hidden");
+        csvInput.value = "";
+      });
+
+      btnImport.addEventListener("click", async () => {
+        const checked = document.querySelectorAll<HTMLInputElement>(".row-check:checked");
+        const indices = Array.from(checked).map((cb) => parseInt(cb.dataset.idx!));
+        const selected = indices.map((i) => ({
+          id: parsedRuns[i].id,
+          name: parsedRuns[i].name,
+          type: parsedRuns[i].type,
+          date: parsedRuns[i].date,
+          distanceKm: parsedRuns[i].distanceKm,
+          durationMs: parsedRuns[i].durationMs,
+          source: "samsung_health",
+        }));
+
+        if (selected.length === 0) {
+          showResult("No runs selected.", false);
+          return;
+        }
+
+        btnImport.textContent = "Importing...";
+        btnImport.setAttribute("disabled", "true");
+
+        try {
+          const res = await fetch("/api/manual-activities", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ activities: selected }),
+          });
+
+          const data = await res.json();
+          if (res.ok) {
+            showResult(`Imported ${selected.length} runs. Total manual activities: ${data.total}. The dashboard will update on next build.`, true);
+            previewSection.classList.add("hidden");
+            csvInput.value = "";
+          } else {
+            showResult(`Error: ${data.error}`, false);
+          }
+        } catch (e: any) {
+          showResult(`Error: ${e.message}`, false);
+        } finally {
+          btnImport.textContent = "Import Selected";
+          btnImport.removeAttribute("disabled");
+        }
+      });
+
+      function showResult(msg: string, success: boolean) {
+        resultSection.classList.remove("hidden");
+        resultMsg.textContent = msg;
+        resultMsg.className = `rounded-lg p-4 text-center font-bold ${success ? "bg-green-900 text-green-200" : "bg-red-900 text-red-200"}`;
+      }
+    </script>
+  </body>
+</html>
