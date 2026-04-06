@@ -223,11 +223,9 @@ const wrongPassword = hasToken && !isAuthenticated;
           const date = new Date(dateStr);
           if (isNaN(date.getTime())) continue;
 
-          // Distance: Samsung Health always stores in meters
+          // Distance: Samsung Health always stores in meters (may be empty for soccer)
           const distanceRaw = parseFloat(cols[distCol]);
-          if (isNaN(distanceRaw) || distanceRaw <= 0) continue;
-
-          const distanceKm = distanceRaw / 1000;
+          const distanceKm = isNaN(distanceRaw) ? 0 : distanceRaw / 1000;
 
           // Duration: Samsung Health stores in milliseconds
           let durationMs = parseFloat(cols[durCol]);
