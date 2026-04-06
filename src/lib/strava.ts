@@ -1,4 +1,5 @@
 import { getTokens, saveTokens, getManualActivities } from "./db";
+import { CHALLENGE_START_MS, CHALLENGE_END_MS, isInDateRange, isValidActivity } from "./challenge";
 
 export interface DashboardData {
   activities: any[];
@@ -48,8 +49,8 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
         await saveTokens(tokens);
       }
 
-      const startDate = new Date("2026-01-15T00:00:00Z").getTime() / 1000;
-      const endDate = new Date("2026-07-01T23:59:59Z").getTime() / 1000;
+      const startDate = CHALLENGE_START_MS / 1000;
+      const endDate = CHALLENGE_END_MS / 1000;
 
       const activitiesRes = await fetch(
         `https://www.strava.com/api/v3/athlete/activities?per_page=200&after=${startDate}&before=${endDate}`,
@@ -69,8 +70,6 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
             const distanceKm = run.distance / 1000;
             const avgSpeedKmh = run.average_speed * 3.6;
 
-            const isRed = avgSpeedKmh < 7.3 || distanceKm < 5;
-
             return {
               id: run.id,
               name: run.name,
@@ -78,7 +77,7 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
               date: new Date(run.start_date),
               distanceKm: distanceKm,
               avgSpeedKmh: avgSpeedKmh,
-              isRed: isRed,
+              isRed: !isValidActivity(distanceKm, avgSpeedKmh),
               source: "strava",
               formattedDate: new Date(run.start_date).toLocaleDateString(
                 "en-GB",
@@ -91,17 +90,11 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
             };
           });
 
-        const startDateMs = startDate * 1000;
-        const endDateMs = endDate * 1000;
         const manualActivities = (await getManualActivities())
-          .filter((run) => {
-            const t = new Date(run.date).getTime();
-            return t >= startDateMs && t <= endDateMs;
-          })
+          .filter((run) => isInDateRange(new Date(run.date)))
           .map((run) => {
           const durationHours = run.durationMs / 3_600_000;
           const avgSpeedKmh = durationHours > 0 ? run.distanceKm / durationHours : 0;
-          const isRed = avgSpeedKmh < 7.3 || run.distanceKm < 5;
 
           return {
             id: run.id,
@@ -110,7 +103,7 @@ export const fetchDashboardData = async (): Promise<DashboardData> => {
             date: new Date(run.date),
             distanceKm: run.distanceKm,
             avgSpeedKmh: avgSpeedKmh,
-            isRed: isRed,
+            isRed: !isValidActivity(run.distanceKm, avgSpeedKmh),
             source: run.source,
             formattedDate: new Date(run.date).toLocaleDateString("en-GB", {
               day: "numeric",
