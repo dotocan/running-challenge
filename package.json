@@ -10,15 +10,15 @@
     "format": "prettier --write ."
   },
   "dependencies": {
-    "@astrojs/netlify": "^7.0.1",
-    "@tailwindcss/vite": "^4.1.18",
-    "astro": "^6.0.2",
-    "ioredis": "^5.9.1",
-    "tailwindcss": "^4.1.18"
+    "@astrojs/netlify": "^7.0.6",
+    "@tailwindcss/vite": "^4.2.2",
+    "astro": "^6.1.5",
+    "ioredis": "^5.10.1",
+    "tailwindcss": "^4.2.2"
   },
   "devDependencies": {
     "@types/node": "^25.0.8",
-    "prettier": "^3.8.0",
+    "prettier": "^3.8.1",
     "prettier-plugin-astro": "^0.14.1"
   }
 }
