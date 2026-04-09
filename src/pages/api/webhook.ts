@@ -37,8 +37,10 @@ export const POST: APIRoute = async ({ request }) => {
       import.meta.env.NETLIFY_BUILD_HOOK || process.env.NETLIFY_BUILD_HOOK;
 
     if (buildHook) {
-      // Fire and forget: Trigger Netlify build hook to generate static site with new data
-      fetch(buildHook, { method: "POST" }).catch((err) => {
+      // Await the fetch: In serverless environments, fire-and-forget requests 
+      // are often terminated when the response is returned. 
+      // Triggering the Netlify build hook is fast enough to meet Strava's 2-second requirement.
+      await fetch(buildHook, { method: "POST" }).catch((err) => {
         console.error("Failed to trigger Netlify build hook:", err);
       });
     } else {
