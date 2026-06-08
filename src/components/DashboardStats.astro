@@ -12,6 +12,18 @@ const { activities, runCount, totalDistance, totalOverallDistance, errorMsg } = 
 
 const formattedTotalDistance = totalDistance.toFixed(2);
 const formattedTotalOverallDistance = totalOverallDistance.toFixed(2);
+
+// Total Distance progress bar (goal = 600km)
+const DISTANCE_GOAL = 600;
+const validDistancePct = Math.min((totalDistance / DISTANCE_GOAL) * 100, 100);
+const overallDistancePct = Math.min((totalOverallDistance / DISTANCE_GOAL) * 100, 100);
+// Grey segment is the extra progress the invalid runs would have added.
+const extraDistancePct = Math.max(overallDistancePct - validDistancePct, 0);
+
+// Valid runs bar (blue = valid, red = invalid)
+const totalRunCount = activities.length;
+const validRunsPct = totalRunCount > 0 ? (runCount / totalRunCount) * 100 : 0;
+const invalidRunsPct = 100 - validRunsPct;
 ---
 
 <div class="relative">
@@ -47,6 +59,10 @@ const formattedTotalOverallDistance = totalOverallDistance.toFixed(2);
               <p class="text-sm text-gray-400 mt-2">
                 bilo bi {activities.length} da nisi invalid
               </p>
+              <div class="w-full h-3 rounded-full overflow-hidden bg-gray-200 mt-3 flex">
+                <div class="h-full bg-blue-600" style={`width: ${validRunsPct}%`} />
+                <div class="h-full bg-red-500" style={`width: ${invalidRunsPct}%`} />
+              </div>
             </div>
             <div class="bg-white rounded-lg shadow-md p-6 flex flex-col items-center">
               <h2 class="text-lg font-semibold text-gray-500 uppercase tracking-wide">
@@ -59,6 +75,10 @@ const formattedTotalOverallDistance = totalOverallDistance.toFixed(2);
               <p class="text-sm text-gray-400 mt-2">
                 bilo bi {formattedTotalOverallDistance} da nisi invalid
               </p>
+              <div class="w-full h-3 rounded-full overflow-hidden bg-gray-200 mt-3 flex">
+                <div class="h-full bg-green-600" style={`width: ${validDistancePct}%`} />
+                <div class="h-full bg-gray-400" style={`width: ${extraDistancePct}%`} />
+              </div>
             </div>
           </section>
 
